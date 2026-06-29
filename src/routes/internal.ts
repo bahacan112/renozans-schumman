@@ -32,12 +32,17 @@ async function processKp(kp: number) {
     return { created: false, kp, band, lastBand, reason: 'no upward crossing' };
   }
 
+  store.setLastBand(band);
+  return emitAlert(kp, band);
+}
+
+/** Create an alert + push to users whose prefs include this band. */
+async function emitAlert(kp: number, band: number) {
   const { title, body } = alertContent(kp, band);
   const alert = store.addAlert({ kp, band, title, body });
-  store.setLastBand(band);
 
-  // Push to all registered devices (app-closed delivery).
-  const push = await sendPush(store.allPushTokens(), title, body, {
+  // Push only to devices whose owner opted into this band.
+  const push = await sendPush(store.tokensForBand(band), title, body, {
     kp: String(kp),
     band: String(band),
   }).catch((err) => {
@@ -74,4 +79,19 @@ internalRoutes.post('/kp-poll', async (c) => {
     return c.json({ error: 'noaa_failed', message: String(err) }, 502);
   }
   return c.json(await processKp(kp));
+});
+
+/**
+ * POST /internal/test-notify { band } — emit a test notification for a given
+ * band (1/2/3) WITHOUT touching the dedup state. Used to verify each Kp range.
+ */
+internalRoutes.post('/test-notify', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = z.object({ band: z.number().int().min(1).max(3) }).safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'invalid_input', message: 'band (1-3) gerekli' }, 400);
+  }
+  const band = parsed.data.band;
+  const kp = band === 3 ? 7.5 : band === 2 ? 5.5 : 3.5;
+  return c.json(await emitAlert(kp, band));
 });

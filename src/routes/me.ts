@@ -9,10 +9,26 @@ export const meRoutes = new Hono();
 
 meRoutes.use('*', authGuard);
 
-/** GET /me/notifications — in-app inbox: recent alerts + unread count. */
+/** GET /me/notifications — in-app inbox (filtered by the user's band prefs). */
 meRoutes.get('/notifications', (c) => {
   const { sub } = c.get('session');
-  return c.json({ items: store.listAlerts(30), unreadCount: store.unreadCount(sub) });
+  return c.json({ items: store.listAlerts(sub, 30), unreadCount: store.unreadCount(sub) });
+});
+
+/** GET /me/prefs — which Kp bands the user wants notifications for. */
+meRoutes.get('/prefs', (c) => {
+  const { sub } = c.get('session');
+  return c.json({ bands: store.getPrefs(sub) });
+});
+
+/** PUT /me/prefs { bands:number[] } — set notification band preferences. */
+meRoutes.put('/prefs', async (c) => {
+  const { sub } = c.get('session');
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = z.object({ bands: z.array(z.number().int().min(0).max(3)).max(5) }).safeParse(body);
+  if (!parsed.success) return c.json({ error: 'invalid_input' }, 400);
+  store.setPrefs(sub, parsed.data.bands);
+  return c.json({ bands: store.getPrefs(sub) });
 });
 
 /** POST /me/notifications/read — mark the inbox as read (now). */
