@@ -56,7 +56,7 @@ export async function sendPush(
     tokens,
     notification: { title, body },
     data,
-    android: { priority: 'high', notification: { channelId: 'kp-alerts' } },
+    android: { priority: 'high' },
   });
 
   result.sent = res.successCount;
