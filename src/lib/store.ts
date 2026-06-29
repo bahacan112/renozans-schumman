@@ -75,7 +75,15 @@ export const store = {
   },
 
   allPushTokens(): string[] {
-    return Object.values(data.pushTokens).flat();
+    return [...new Set(Object.values(data.pushTokens).flat())];
+  },
+
+  removePushTokens(tokens: string[]) {
+    const dead = new Set(tokens);
+    for (const uid of Object.keys(data.pushTokens)) {
+      data.pushTokens[uid] = data.pushTokens[uid].filter((t) => !dead.has(t));
+    }
+    persist();
   },
 
   getLastBand(): number {
